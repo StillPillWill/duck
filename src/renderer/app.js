@@ -56,6 +56,10 @@ const settingIdleInput = document.getElementById('setting-idle-input');
 const settingQuality = document.getElementById('setting-quality');
 const settingDisplay = document.getElementById('setting-display');
 const settingAllowlistEnabled = document.getElementById('setting-allowlist-enabled');
+const filterModeRow = document.getElementById('filter-mode-row');
+const filterHint = document.getElementById('filter-hint');
+const btnFilterAllow = document.getElementById('btn-filter-allow');
+const btnFilterBlock = document.getElementById('btn-filter-block');
 const allowlistManager = document.getElementById('allowlist-manager');
 const runningAppsPicker = document.getElementById('running-apps-picker');
 const btnRefreshRunningApps = document.getElementById('btn-refresh-running-apps');
@@ -615,6 +619,11 @@ async function loadSettings() {
 
     settingAllowlistEnabled.checked = allowlistEnabled;
     allowlistManager.style.display = allowlistEnabled ? 'block' : 'none';
+    filterModeRow.style.display = allowlistEnabled ? 'block' : 'none';
+
+    // Filter mode
+    const filterMode = await ipcRenderer.invoke('settings-get', 'filterMode');
+    updateFilterUI(filterMode || 'allowlist');
 
     settingStoragePath.value = storagePath;
     settingMinimizeTray.checked = minimizeTray;
@@ -752,7 +761,33 @@ settingAllowlistEnabled.addEventListener('change', async (e) => {
     const enabled = e.target.checked;
     await ipcRenderer.invoke('settings-set', 'allowlistEnabled', enabled);
     allowlistManager.style.display = enabled ? 'block' : 'none';
+    filterModeRow.style.display = enabled ? 'block' : 'none';
+    updateFilterHint();
     showToast(`Application filtering ${enabled ? 'enabled' : 'disabled'}`, 'info');
+});
+
+// Filter mode buttons
+function updateFilterUI(mode) {
+    btnFilterAllow.classList.toggle('active', mode === 'allowlist');
+    btnFilterBlock.classList.toggle('active', mode === 'blocklist');
+    updateFilterHint();
+}
+
+function updateFilterHint() {
+    const mode = btnFilterAllow.classList.contains('active') ? 'allowlist' : 'blocklist';
+    filterHint.textContent = mode === 'allowlist'
+        ? 'Only capture when working in approved apps.'
+        : 'Capture everything except the listed apps.';
+}
+
+btnFilterAllow.addEventListener('click', async () => {
+    updateFilterUI('allowlist');
+    await ipcRenderer.invoke('settings-set', 'filterMode', 'allowlist');
+});
+
+btnFilterBlock.addEventListener('click', async () => {
+    updateFilterUI('blocklist');
+    await ipcRenderer.invoke('settings-set', 'filterMode', 'blocklist');
 });
 
 settingMinimizeTray.addEventListener('change', async (e) => {

@@ -15,6 +15,7 @@ const DEFAULTS = {
     interval: 60, // seconds
     idleThreshold: 300, // seconds
     allowlistEnabled: false,
+    filterMode: 'allowlist', // 'allowlist' = only these apps, 'blocklist' = everything except these
     allowlist: [], // e.g. ['Code.exe', 'chrome.exe', 'idea64.exe']
     storagePath: path.join(storageDir, 'sessions'),
     maxStorageGb: 10,

@@ -233,12 +233,26 @@
                     <div class="field field-toggle">
                         <div>
                             <label for="setting-allowlist-enabled">Filter by Application</label>
-                            <p class="field-hint">Only capture when working in approved apps.</p>
+                            <p class="field-hint" id="filter-hint">Only capture when working in approved apps.</p>
                         </div>
                         <label class="switch">
                             <input type="checkbox" id="setting-allowlist-enabled">
                             <span class="slider"></span>
                         </label>
+                    </div>
+
+                    <div id="filter-mode-row" class="field" style="display:none;">
+                        <label>Filter Mode</label>
+                        <div class="filter-mode-toggle">
+                            <button class="filter-mode-btn active" data-mode="allowlist" id="btn-filter-allow">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+                                Only these apps
+                            </button>
+                            <button class="filter-mode-btn" data-mode="blocklist" id="btn-filter-block">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                Everything except these
+                            </button>
+                        </div>
                     </div>
 
                     <div id="allowlist-manager" class="allowlist-section" style="display:none;">

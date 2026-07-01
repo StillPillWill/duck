@@ -64,7 +64,8 @@ async function captureScreen() {
         let capturedTitle = 'Primary Display';
 
         if (allowlistEnabled && allowlist.length > 0) {
-            logDebug(`Allowlist enabled. Targets: [${allowlist.join(', ')}]`);
+            const filterMode = settingsStore.get('filterMode') || 'allowlist';
+            logDebug(`Filter mode: ${filterMode}. List: [${allowlist.join(', ')}]`);
             
             // 1. Get all visible windows from Win32 FFI
             const allWindows = windowHelper.getVisibleWindows();
@@ -73,15 +74,27 @@ async function captureScreen() {
                 logDebug(`  - HWND: ${w.hwnd} | App: ${w.appName} | Title: "${w.title}" | Rect: ${JSON.stringify(w.rect)}`);
             });
             
-            // 2. Filter by allowlist
-            const targetWindows = allWindows.filter(w =>
-                allowlist.some(a => a.toLowerCase() === w.appName.toLowerCase())
-            );
-            logDebug(`Target allowlisted windows: ${targetWindows.length} found.`);
+            // 2. Filter by mode
+            let targetWindows;
+            if (filterMode === 'blocklist') {
+                // Blocklist: keep everything EXCEPT the listed apps
+                targetWindows = allWindows.filter(w =>
+                    !allowlist.some(a => a.toLowerCase() === w.appName.toLowerCase())
+                );
+                logDebug(`Blocklist filter: ${targetWindows.length} windows remaining after excluding [${allowlist.join(', ')}].`);
+            } else {
+                // Allowlist: keep only the listed apps
+                targetWindows = allWindows.filter(w =>
+                    allowlist.some(a => a.toLowerCase() === w.appName.toLowerCase())
+                );
+                logDebug(`Allowlist filter: ${targetWindows.length} matching windows found.`);
+            }
 
             if (targetWindows.length === 0) {
-                logDebug('No matching allowlisted apps are currently running.');
-                throw new Error('No allowlisted apps are currently running/visible.');
+                logDebug('No matching windows found after filtering.');
+                throw new Error(filterMode === 'blocklist'
+                    ? 'All visible windows are blocked by the filter list.'
+                    : 'No allowlisted apps are currently running/visible.');
             }
 
             // 3. Select the best window: focused/active or topmost visible
