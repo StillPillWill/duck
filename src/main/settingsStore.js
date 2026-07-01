@@ -24,6 +24,7 @@ const DEFAULTS = {
     timelapseResolution: '1.0',
     timelapseSubtitles: true,
     quality: 'medium',
+    selectedDisplay: 'primary', // 'primary' or display id like '192837465' or index '0','1',...
     minimizeToTray: true,
     launchOnStartup: false
 };

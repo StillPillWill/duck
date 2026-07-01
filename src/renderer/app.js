@@ -54,6 +54,7 @@ const settingIntervalInput = document.getElementById('setting-interval-input');
 const settingIdle = document.getElementById('setting-idle');
 const settingIdleInput = document.getElementById('setting-idle-input');
 const settingQuality = document.getElementById('setting-quality');
+const settingDisplay = document.getElementById('setting-display');
 const settingAllowlistEnabled = document.getElementById('setting-allowlist-enabled');
 const allowlistManager = document.getElementById('allowlist-manager');
 const runningAppsPicker = document.getElementById('running-apps-picker');
@@ -556,6 +557,11 @@ async function loadSettings() {
 
     settingQuality.value = quality;
 
+    // Display selector
+    await populateDisplayDropdown();
+    const selectedDisplay = await ipcRenderer.invoke('settings-get', 'selectedDisplay');
+    settingDisplay.value = selectedDisplay || 'primary';
+
     settingAllowlistEnabled.checked = allowlistEnabled;
     allowlistManager.style.display = allowlistEnabled ? 'block' : 'none';
 
@@ -666,6 +672,29 @@ settingIdleInput.addEventListener('change', async (e) => {
 settingQuality.addEventListener('change', async (e) => {
     await ipcRenderer.invoke('settings-set', 'quality', e.target.value);
     showToast('Screenshot quality updated', 'success');
+});
+
+// --- Display selector ---
+async function populateDisplayDropdown() {
+    const displays = await ipcRenderer.invoke('displays-get');
+    settingDisplay.innerHTML = '';
+    if (displays.length === 0) {
+        settingDisplay.innerHTML = '<option value="primary">Primary Display</option>';
+        return;
+    }
+    displays.forEach((d, i) => {
+        const opt = document.createElement('option');
+        opt.value = d.id;
+        const res = `${d.width}×${d.height}`;
+        const tag = d.isPrimary ? ' (Primary)' : '';
+        opt.textContent = `${d.label} — ${res}${tag}`;
+        settingDisplay.appendChild(opt);
+    });
+}
+
+settingDisplay.addEventListener('change', async (e) => {
+    await ipcRenderer.invoke('settings-set', 'selectedDisplay', e.target.value);
+    showToast('Display selection updated', 'success');
 });
 
 settingAllowlistEnabled.addEventListener('change', async (e) => {

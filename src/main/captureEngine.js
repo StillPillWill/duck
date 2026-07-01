@@ -164,31 +164,45 @@ async function captureScreen() {
             capturedApp = selectedWin.appName;
             capturedTitle = selectedWin.title;
         } else {
-            logDebug('Allowlist disabled. Capturing entire primary screen.');
-            
+            logDebug('Allowlist disabled. Capturing selected display.');
+
+            // Resolve which display to capture
+            const selectedDisplaySetting = settingsStore.get('selectedDisplay') || 'primary';
+            const allDisplays = screen.getAllDisplays();
             const primaryDisplay = screen.getPrimaryDisplay();
-            const { width, height } = primaryDisplay.size;
-            
+
+            let targetDisplay;
+            if (selectedDisplaySetting === 'primary') {
+                targetDisplay = primaryDisplay;
+            } else {
+                const displayId = parseInt(selectedDisplaySetting, 10);
+                targetDisplay = allDisplays.find(d => d.id === displayId) || primaryDisplay;
+            }
+
+            const { width, height } = targetDisplay.size;
+            logDebug(`Target display: id=${targetDisplay.id}, size=${width}x${height}`);
+
             const sources = await desktopCapturer.getSources({
                 types: ['screen'],
-                thumbnailSize: {
-                    width: width,
-                    height: height
-                }
+                thumbnailSize: { width, height }
             });
-            
-            const primarySource = sources.find(source => 
-                source.id.startsWith('screen:') || 
-                source.name.toLowerCase().includes('entire screen') ||
-                source.name.toLowerCase().includes('screen 1')
-            ) || sources[0];
-            
-            if (!primarySource) {
+
+            // Match by display_id (Electron 31+), then fall back to name/first source
+            let selectedSource = sources.find(s => String(s.display_id) === String(targetDisplay.id));
+            if (!selectedSource) {
+                selectedSource = sources.find(s =>
+                    s.name.toLowerCase().includes('entire screen') ||
+                    s.name.toLowerCase().includes('screen 1')
+                ) || sources[0];
+            }
+
+            if (!selectedSource) {
                 throw new Error('No screen source found');
             }
-            
-            img = primarySource.thumbnail;
-            
+
+            logDebug(`Selected source: id=${selectedSource.id}, name=${selectedSource.name}`);
+            img = selectedSource.thumbnail;
+
             const activeWin = windowHelper.getActiveWindow();
             if (activeWin) {
                 capturedApp = activeWin.appName;

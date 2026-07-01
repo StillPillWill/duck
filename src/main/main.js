@@ -342,3 +342,22 @@ ipcMain.handle('apps-get-running', () => {
         return [];
     }
 });
+
+ipcMain.handle('displays-get', () => {
+    try {
+        const { screen } = require('electron');
+        const displays = screen.getAllDisplays();
+        const primary = screen.getPrimaryDisplay();
+        return displays.map((d, i) => ({
+            id: d.id,
+            label: d.label || `Display ${i + 1}`,
+            width: d.size.width,
+            height: d.size.height,
+            isPrimary: d.id === primary.id,
+            bounds: d.bounds
+        }));
+    } catch (e) {
+        console.error('Failed to get displays:', e);
+        return [];
+    }
+});
