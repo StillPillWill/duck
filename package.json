@@ -1,0 +1,37 @@
+{
+  "name": "screenie",
+  "version": "1.0.0",
+  "description": "Desktop screenshot timelapse application — automatically captures your screen and generates timelapse videos",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "screenshot",
+    "timelapse",
+    "screen-capture",
+    "activity-tracker",
+    "electron",
+    "windows",
+    "ffmpeg"
+  ],
+  "author": "StillPillWill",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/StillPillWill/duck.git"
+  },
+  "bugs": {
+    "url": "https://github.com/StillPillWill/duck/issues"
+  },
+  "homepage": "https://github.com/StillPillWill/duck#readme",
+  "dependencies": {
+    "ffmpeg-static": "^5.2.0",
+    "fluent-ffmpeg": "^2.1.3",
+    "koffi": "^2.9.0"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0"
+  }
+}
