@@ -4,7 +4,7 @@ A desktop screenshot timelapse application built with Electron. Automatically ca
 
 ![Platform](https://img.shields.io/badge/platform-Windows-0078d4)
 ![Electron](https://img.shields.io/badge/electron-31.x-47848f)
-![License](https://img.shields.io/badge/license-ISC-green)
+![License](https://img.shields.io/badge/license-Apache_2.0-blue)
 
 ## ✨ Features
 
@@ -137,7 +137,7 @@ This runs 80+ tests covering:
 
 ## 📄 License
 
-ISC License. See [LICENSE](LICENSE) for details.
+Apache 2.0. See [LICENSE](LICENSE) for details.
 
 ## 🙏 Acknowledgments
 
