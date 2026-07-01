@@ -22,12 +22,12 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/StillPillWill/duck.git"
+    "url": "https://github.com/StillPillWill/Screenie.git"
   },
   "bugs": {
-    "url": "https://github.com/StillPillWill/duck/issues"
+    "url": "https://github.com/StillPillWill/Screenie/issues"
   },
-  "homepage": "https://github.com/StillPillWill/duck#readme",
+  "homepage": "https://github.com/StillPillWill/Screenie#readme",
   "dependencies": {
     "ffmpeg-static": "^5.2.0",
     "fluent-ffmpeg": "^2.1.3",

@@ -32,8 +32,8 @@ A desktop screenshot timelapse application built with Electron. Automatically ca
 
 ```bash
 # Clone the repository
-git clone https://github.com/StillPillWill/duck.git
-cd duck
+git clone https://github.com/StillPillWill/Screenie.git
+cd Screenie
 
 # Install dependencies
 npm install
