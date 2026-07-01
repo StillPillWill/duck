@@ -9,6 +9,9 @@ const sessionManager = require('./sessionManager');
 const captureEngine = require('./captureEngine');
 const timelapseGenerator = require('./timelapseGenerator');
 
+// Set AUMID so Windows shows the correct icon when pinning to taskbar
+app.setAppUserModelId('com.stillpillwill.screenie');
+
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
@@ -21,6 +24,7 @@ function createMainWindow() {
         minHeight: 640,
         frame: false, // Frameless window for ultra-modern look
         titleBarStyle: 'hidden',
+        icon: path.join(__dirname, '../renderer/assets/icon.png'),
         backgroundColor: '#04040f',
         webPreferences: {
             nodeIntegration: true,
