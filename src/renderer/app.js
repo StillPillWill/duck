@@ -625,7 +625,10 @@ async function loadSettings() {
 
     settingAllowlistEnabled.checked = allowlistEnabled;
     allowlistManager.style.display = allowlistEnabled ? 'block' : 'none';
-    filterModeRow.style.display = allowlistEnabled ? 'block' : 'none';
+
+    // Filter mode — always visible, dimmed when filtering is off
+    filterModeRow.style.opacity = allowlistEnabled ? '1' : '0.4';
+    filterModeRow.style.pointerEvents = allowlistEnabled ? 'auto' : 'none';
 
     // Filter mode
     const filterMode = await ipcRenderer.invoke('settings-get', 'filterMode');
@@ -767,7 +770,8 @@ settingAllowlistEnabled.addEventListener('change', async (e) => {
     const enabled = e.target.checked;
     await ipcRenderer.invoke('settings-set', 'allowlistEnabled', enabled);
     allowlistManager.style.display = enabled ? 'block' : 'none';
-    filterModeRow.style.display = enabled ? 'block' : 'none';
+    filterModeRow.style.opacity = enabled ? '1' : '0.4';
+    filterModeRow.style.pointerEvents = enabled ? 'auto' : 'none';
     updateFilterHint();
     const mode = btnFilterAllow.classList.contains('active') ? 'allowlist' : 'blocklist';
     updateFilterIndicator(mode);
