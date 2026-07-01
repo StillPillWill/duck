@@ -279,8 +279,28 @@ async function loadSessions() {
     const sessions = await ipcRenderer.invoke('sessions-get-all');
     sessionsContainer.innerHTML = '';
 
+    // Storage monitor
+    const storage = await ipcRenderer.invoke('sessions-get-storage-size');
+    const sizeMB = (storage.totalBytes / (1024 * 1024)).toFixed(1);
+    const sizeLabel = storage.totalBytes > 1024 * 1024 * 1024
+        ? `${(storage.totalBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
+        : `${sizeMB} MB`;
+
+    const monitorHTML = `
+        <div class="storage-monitor">
+            <div class="storage-monitor-info">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span>${storage.sessionCount} session${storage.sessionCount !== 1 ? 's' : ''}</span>
+                <span class="storage-sep">·</span>
+                <span>${sizeLabel} used</span>
+            </div>
+            <span class="storage-monitor-path">📁 ${storagePath || 'Default'}</span>
+        </div>
+    `;
+    sessionsContainer.innerHTML = monitorHTML;
+
     if (sessions.length === 0) {
-        sessionsContainer.innerHTML = `
+        sessionsContainer.innerHTML += `
             <div class="empty-state">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>
@@ -291,7 +311,15 @@ async function loadSessions() {
         return;
     }
 
-    sessions.forEach(session => {
+    // Fetch thumbnails in parallel
+    const thumbPromises = sessions.map(s =>
+        s.frameCount > 0
+            ? ipcRenderer.invoke('session-get-last-frame', s.id)
+            : Promise.resolve(null)
+    );
+    const thumbnails = await Promise.all(thumbPromises);
+
+    sessions.forEach((session, i) => {
         const dateStr = new Date(session.startTime).toLocaleString();
         const durationMin = Math.round((session.endTime - session.startTime) / 60000);
 
@@ -300,35 +328,47 @@ async function loadSessions() {
         card.id = `session-card-${session.id}`;
 
         const appsHTML = session.appsUsed.map(app => `<span class="app-micro-badge">${app}</span>`).join(' ');
+        const thumbSrc = thumbnails[i] ? `data:image/jpeg;base64,${thumbnails[i]}` : '';
+        const thumbHTML = thumbSrc
+            ? `<img class="session-thumb" src="${thumbSrc}" alt="Last frame">`
+            : `<div class="session-thumb session-thumb-empty"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>`;
 
         card.innerHTML = `
-            <div class="session-card-header">
-                <div class="session-header-info">
-                    <h3>Session ${session.id.replace('session_', '').replace(/_/g, ' ').replace(/-/g, ':')}</h3>
-                    <div class="session-meta-info">
-                        <span>Started: ${dateStr}</span>
-                        <span>Duration: ${durationMin} min</span>
-                        <span>Frames: ${session.frameCount}</span>
+            <div class="session-card-layout">
+                <div class="session-thumb-wrap">
+                    ${thumbHTML}
+                </div>
+                <div class="session-card-content">
+                    <div class="session-card-header">
+                        <div class="session-header-info">
+                            <h3>${session.id.replace('session_', '').replace(/_/g, ' ').replace(/-/g, ':')}</h3>
+                            <div class="session-meta-info">
+                                <span>Started: ${dateStr}</span>
+                                <span>Duration: ${durationMin} min</span>
+                                <span>Frames: ${session.frameCount}</span>
+                            </div>
+                        </div>
+                        <div class="session-header-actions">
+                            <button class="btn btn-ghost btn-sm" onclick="viewSession('${session.id}')">View Frames</button>
+
+                            ${session.hasTimelapse ?
+                                `<button class="btn btn-ghost btn-sm" style="color: var(--accent);" onclick="watchTimelapse('${session.id}')">Watch Timelapse</button>
+                                 <button class="btn btn-ghost btn-sm" onclick="exportTimelapse('${session.id}')">Export</button>
+                                 <button class="btn btn-ghost btn-sm" style="color: var(--amber);" onclick="archiveSession('${session.id}')">Archive</button>` :
+                                `<button class="btn btn-primary-sm btn-sm btn-render-${session.id}" onclick="renderTimelapse('${session.id}')">Render Video</button>`
+                            }
+
+                            <button class="btn btn-ghost btn-sm" style="color: var(--green);" onclick="resumeSession('${session.id}')">Resume</button>
+                            <button class="btn btn-ghost btn-sm" style="color: var(--red);" onclick="confirmDeleteSession('${session.id}')">Delete</button>
+                        </div>
                     </div>
-                </div>
-                <div class="session-header-actions">
-                    <button class="btn btn-ghost btn-sm" onclick="viewSession('${session.id}')">View Frames</button>
-
-                    ${session.hasTimelapse ?
-                        `<button class="btn btn-ghost btn-sm" style="color: var(--accent);" onclick="watchTimelapse('${session.id}')">Watch Timelapse</button>
-                         <button class="btn btn-ghost btn-sm" onclick="exportTimelapse('${session.id}')">Export</button>` :
-                        `<button class="btn btn-primary-sm btn-sm btn-render-${session.id}" onclick="renderTimelapse('${session.id}')">Render Video</button>`
-                    }
-
-                    <button class="btn btn-ghost btn-sm" style="color: var(--green);" onclick="resumeSession('${session.id}')">Resume</button>
-                    <button class="btn btn-ghost btn-sm" style="color: var(--red);" onclick="confirmDeleteSession('${session.id}')">Delete</button>
-                </div>
-            </div>
-            <div class="session-card-body">
-                <div class="session-apps-used">
-                    <div class="session-apps-used-title">Applications Tracked</div>
-                    <div class="session-apps-list">
-                        ${appsHTML || '<span style="color:var(--text-4);font-size:11px;">No app details captured</span>'}
+                    <div class="session-card-body">
+                        <div class="session-apps-used">
+                            <div class="session-apps-used-title">Applications Tracked</div>
+                            <div class="session-apps-list">
+                                ${appsHTML || '<span style="color:var(--text-4);font-size:11px;">No app details captured</span>'}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -372,6 +412,17 @@ window.confirmDeleteSession = async function(sessionId) {
         } else {
             showToast('Failed to delete session', 'error');
         }
+    }
+};
+
+window.archiveSession = async function(sessionId) {
+    if (!confirm('Archive this session? The timelapse video will be saved and the session removed from this list.')) return;
+    const result = await ipcRenderer.invoke('session-archive', sessionId);
+    if (result.success) {
+        showToast(`Video archived to: ${result.archivePath}`, 'success');
+        loadSessions();
+    } else {
+        showToast(`Archive failed: ${result.error}`, 'error');
     }
 };
 

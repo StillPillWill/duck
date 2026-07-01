@@ -277,6 +277,27 @@ ipcMain.handle('session-delete', (event, sessionId) => {
     return sessionManager.deleteSession(sessionId);
 });
 
+ipcMain.handle('session-get-last-frame', (event, sessionId) => {
+    try {
+        const details = sessionManager.getSessionDetails(sessionId);
+        if (!details || !details.frames || details.frames.length === 0) return null;
+        const lastFrame = details.frames[details.frames.length - 1];
+        const filePath = require('path').join(details.path, lastFrame.filename);
+        if (!fs.existsSync(filePath)) return null;
+        return fs.readFileSync(filePath).toString('base64');
+    } catch (e) {
+        return null;
+    }
+});
+
+ipcMain.handle('session-archive', (event, sessionId) => {
+    return sessionManager.archiveSession(sessionId);
+});
+
+ipcMain.handle('sessions-get-storage-size', () => {
+    return sessionManager.getStorageSize();
+});
+
 // Timelapse IPC
 ipcMain.handle('timelapse-generate', async (event, sessionId, fps) => {
     try {

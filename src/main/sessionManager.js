@@ -132,6 +132,7 @@ function addFrame(imageBuffer, activeWindowInfo) {
         indexEntry.endTime = currentSession.endTime;
         indexEntry.frameCount = currentSession.frameCount;
         indexEntry.appsUsed = [...currentSession.appsUsed];
+        indexEntry.lastFrameFilename = filename;
         saveIndex();
     }
     
@@ -279,6 +280,89 @@ function resumeSession(sessionId) {
     return currentSession;
 }
 
+/**
+ * Archive a session: move timelapse to archive folder, delete session files
+ */
+function archiveSession(sessionId) {
+    loadIndex();
+    const indexEntry = sessionIndex.find(e => e.id === sessionId);
+    if (!indexEntry) return { success: false, error: 'Session not found' };
+    if (!indexEntry.hasTimelapse || !indexEntry.timelapsePath) {
+        return { success: false, error: 'No timelapse to archive. Render one first.' };
+    }
+
+    const storagePath = settingsStore.get('storagePath');
+    const archiveDir = path.join(storagePath, '..', 'archive');
+    if (!fs.existsSync(archiveDir)) {
+        fs.mkdirSync(archiveDir, { recursive: true });
+    }
+
+    // Move timelapse to archive
+    const archiveName = `${sessionId}_timelapse.mp4`;
+    const archivePath = path.join(archiveDir, archiveName);
+    try {
+        fs.copyFileSync(indexEntry.timelapsePath, archivePath);
+    } catch (e) {
+        return { success: false, error: `Failed to copy video: ${e.message}` };
+    }
+
+    // Delete session folder
+    try {
+        if (fs.existsSync(indexEntry.path)) {
+            fs.rmSync(indexEntry.path, { recursive: true, force: true });
+        }
+    } catch (e) {
+        console.error('Failed to delete session folder:', e);
+    }
+
+    // Remove from index
+    const idx = sessionIndex.findIndex(e => e.id === sessionId);
+    if (idx > -1) sessionIndex.splice(idx, 1);
+    saveIndex();
+
+    return { success: true, archivePath };
+}
+
+/**
+ * Calculate total size of sessions directory
+ */
+function getStorageSize() {
+    const storagePath = settingsStore.get('storagePath');
+    let totalBytes = 0;
+    let sessionCount = 0;
+
+    function dirSize(dir) {
+        try {
+            if (!fs.existsSync(dir)) return;
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    dirSize(fullPath);
+                } else {
+                    try {
+                        totalBytes += fs.statSync(fullPath).size;
+                    } catch (e) {}
+                }
+            }
+        } catch (e) {}
+    }
+
+    try {
+        if (fs.existsSync(storagePath)) {
+            const entries = fs.readdirSync(storagePath, { withFileTypes: true });
+            sessionCount = entries.filter(e => e.isDirectory()).length;
+            dirSize(storagePath);
+        }
+    } catch (e) {}
+
+    // Also count archive folder
+    const archiveDir = path.join(storagePath, '..', 'archive');
+    dirSize(archiveDir);
+
+    return { totalBytes, sessionCount };
+}
+
 // Initial load on import
 loadIndex();
 
@@ -291,5 +375,7 @@ module.exports = {
     getSessionDetails,
     deleteSession,
     updateSessionTimelapse,
-    getCurrentSession: () => currentSession
+    getCurrentSession: () => currentSession,
+    archiveSession,
+    getStorageSize
 };
