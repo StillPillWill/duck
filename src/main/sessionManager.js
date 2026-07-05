@@ -363,6 +363,170 @@ function getStorageSize() {
     return { totalBytes, sessionCount };
 }
 
+/**
+ * Trim a session: delete frames outside [startIndex, endIndex] (0-based, inclusive)
+ * Renames remaining frames to sequential filenames.
+ */
+function trimSession(sessionId, startIndex, endIndex) {
+    loadIndex();
+    const indexEntry = sessionIndex.find(e => e.id === sessionId);
+    if (!indexEntry) return { success: false, error: 'Session not found' };
+
+    const details = getSessionDetails(sessionId);
+    if (!details || !details.frames || details.frames.length === 0) {
+        return { success: false, error: 'No frames in session' };
+    }
+
+    const frames = details.frames;
+    const keepFrames = frames.slice(startIndex, endIndex + 1);
+
+    // Delete frames outside range
+    for (let i = 0; i < frames.length; i++) {
+        if (i < startIndex || i > endIndex) {
+            const fp = path.join(details.path, frames[i].filename);
+            try { if (fs.existsSync(fp)) fs.unlinkSync(fp); } catch (e) {}
+        }
+    }
+
+    // Rename kept frames to sequential filenames
+    const renamedFrames = keepFrames.map((frame, i) => {
+        const newIdx = String(i + 1).padStart(5, '0');
+        const newFilename = `capture_${newIdx}.jpg`;
+        const oldPath = path.join(details.path, frame.filename);
+        const newPath = path.join(details.path, newFilename);
+        if (frame.filename !== newFilename && fs.existsSync(oldPath)) {
+            try { fs.renameSync(oldPath, newPath); } catch (e) {}
+        }
+        return { ...frame, filename: newFilename };
+    });
+
+    // Update metadata
+    details.frames = renamedFrames;
+    details.frameCount = renamedFrames.length;
+    if (renamedFrames.length > 0) {
+        details.endTime = renamedFrames[renamedFrames.length - 1].timestamp;
+    }
+    saveSessionMetadata(details);
+
+    // Update index
+    indexEntry.frameCount = renamedFrames.length;
+    indexEntry.endTime = details.endTime;
+    indexEntry.lastFrameFilename = renamedFrames.length > 0 ? renamedFrames[renamedFrames.length - 1].filename : null;
+    indexEntry.hasTimelapse = false;
+    indexEntry.timelapsePath = null;
+    saveIndex();
+
+    // Delete old timelapse if it exists
+    const oldTimelapse = path.join(details.path, 'timelapse.mp4');
+    try { if (fs.existsSync(oldTimelapse)) fs.unlinkSync(oldTimelapse); } catch (e) {}
+
+    return { success: true, frameCount: renamedFrames.length };
+}
+
+/**
+ * Split a session at a frame index (0-based). Frames [0..splitIndex] stay,
+ * frames [splitIndex+1..] go to a new session.
+ */
+function splitSession(sessionId, splitIndex) {
+    loadIndex();
+    const indexEntry = sessionIndex.find(e => e.id === sessionId);
+    if (!indexEntry) return { success: false, error: 'Session not found' };
+
+    const details = getSessionDetails(sessionId);
+    if (!details || !details.frames || details.frames.length === 0) {
+        return { success: false, error: 'No frames in session' };
+    }
+
+    if (splitIndex < 0 || splitIndex >= details.frames.length - 1) {
+        return { success: false, error: 'Split index must be within the session (not first or last frame)' };
+    }
+
+    const keepFrames = details.frames.slice(0, splitIndex + 1);
+    const movedFrames = details.frames.slice(splitIndex + 1);
+
+    // Create new session for moved frames
+    const newSessionId = `session_${new Date().toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '-')}`;
+    const storagePath = settingsStore.get('storagePath');
+    const newSessionPath = path.join(storagePath, newSessionId);
+    if (!fs.existsSync(newSessionPath)) {
+        fs.mkdirSync(newSessionPath, { recursive: true });
+    }
+
+    // Move frame files to new session and rename
+    const newFrames = movedFrames.map((frame, i) => {
+        const newIdx = String(i + 1).padStart(5, '0');
+        const newFilename = `capture_${newIdx}.jpg`;
+        const oldPath = path.join(details.path, frame.filename);
+        const newPath = path.join(newSessionPath, newFilename);
+        try { if (fs.existsSync(oldPath)) fs.renameSync(oldPath, newPath); } catch (e) {}
+        return { ...frame, filename: newFilename };
+    });
+
+    // Rename kept frames in original session
+    const renamedKeepFrames = keepFrames.map((frame, i) => {
+        const newIdx = String(i + 1).padStart(5, '0');
+        const newFilename = `capture_${newIdx}.jpg`;
+        const oldPath = path.join(details.path, frame.filename);
+        const newPath = path.join(details.path, newFilename);
+        if (frame.filename !== newFilename && fs.existsSync(oldPath)) {
+            try { fs.renameSync(oldPath, newPath); } catch (e) {}
+        }
+        return { ...frame, filename: newFilename };
+    });
+
+    // Update original session metadata
+    details.frames = renamedKeepFrames;
+    details.frameCount = renamedKeepFrames.length;
+    if (renamedKeepFrames.length > 0) {
+        details.endTime = renamedKeepFrames[renamedKeepFrames.length - 1].timestamp;
+    }
+    details.hasTimelapse = false;
+    details.timelapsePath = null;
+    saveSessionMetadata(details);
+
+    // Create new session metadata
+    const newSession = {
+        id: newSessionId,
+        path: newSessionPath,
+        startTime: newFrames.length > 0 ? newFrames[0].timestamp : Date.now(),
+        endTime: newFrames.length > 0 ? newFrames[newFrames.length - 1].timestamp : Date.now(),
+        frameCount: newFrames.length,
+        appsUsed: [...new Set(newFrames.map(f => f.appName).filter(a => a && a !== 'Unknown'))],
+        frames: newFrames,
+        hasTimelapse: false,
+        timelapsePath: null
+    };
+    saveSessionMetadata(newSession);
+
+    // Update index
+    indexEntry.frameCount = renamedKeepFrames.length;
+    indexEntry.endTime = details.endTime;
+    indexEntry.lastFrameFilename = renamedKeepFrames.length > 0 ? renamedKeepFrames[renamedKeepFrames.length - 1].filename : null;
+    indexEntry.hasTimelapse = false;
+    indexEntry.timelapsePath = null;
+    saveIndex();
+
+    // Add new session to index
+    sessionIndex.unshift({
+        id: newSessionId,
+        path: newSessionPath,
+        startTime: newSession.startTime,
+        endTime: newSession.endTime,
+        frameCount: newSession.frameCount,
+        appsUsed: newSession.appsUsed,
+        hasTimelapse: false,
+        timelapsePath: null,
+        lastFrameFilename: newFrames.length > 0 ? newFrames[newFrames.length - 1].filename : null
+    });
+    saveIndex();
+
+    // Delete old timelapses
+    const oldTimelapse = path.join(details.path, 'timelapse.mp4');
+    try { if (fs.existsSync(oldTimelapse)) fs.unlinkSync(oldTimelapse); } catch (e) {}
+
+    return { success: true, newSessionId, originalFrames: renamedKeepFrames.length, splitFrames: newFrames.length };
+}
+
 // Initial load on import
 loadIndex();
 
@@ -377,5 +541,7 @@ module.exports = {
     updateSessionTimelapse,
     getCurrentSession: () => currentSession,
     archiveSession,
-    getStorageSize
+    getStorageSize,
+    trimSession,
+    splitSession
 };

@@ -351,6 +351,8 @@ function resume() {
     if (!isRecording || !isPaused) return;
     isPaused = false;
     lastStatus = 'Recording';
+    // Reset capture time so auto-segment threshold doesn't fire on first tick
+    lastCaptureTime = Date.now();
     const interval = settingsStore.get('interval');
     tick();
     startCountdown(interval);

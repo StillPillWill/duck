@@ -377,6 +377,14 @@ ipcMain.handle('sessions-get-storage-size', () => {
     return sessionManager.getStorageSize();
 });
 
+ipcMain.handle('session-trim', (event, sessionId, startIndex, endIndex) => {
+    return sessionManager.trimSession(sessionId, startIndex, endIndex);
+});
+
+ipcMain.handle('session-split', (event, sessionId, splitIndex) => {
+    return sessionManager.splitSession(sessionId, splitIndex);
+});
+
 // Timelapse IPC
 ipcMain.handle('timelapse-generate', async (event, sessionId, fps) => {
     try {

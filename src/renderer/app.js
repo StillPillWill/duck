@@ -98,6 +98,11 @@ const viewerScrubSlider = document.getElementById('viewer-scrub-slider');
 const viewerScrubControls = document.getElementById('viewer-scrub-controls');
 const btnViewerPlay = document.getElementById('btn-viewer-play');
 const viewerFrameCounter = document.getElementById('viewer-frame-counter');
+const btnSetIn = document.getElementById('btn-set-in');
+const btnSetOut = document.getElementById('btn-set-out');
+const viewerRangeLabel = document.getElementById('viewer-range-label');
+const btnTrim = document.getElementById('btn-trim');
+const btnSplit = document.getElementById('btn-split');
 const toastContainer = document.getElementById('toast-container');
 
 // Ring circumference (r=88 → C = 2 * π * 88)
@@ -487,8 +492,10 @@ window.exportTimelapse = async function(sessionId) {
 
 // --- VIEWER MODAL ---
 let currentViewerFrames = [];
+let currentViewerSessionId = null;
 let viewerPlayInterval = null;
 let currentViewerIndex = 0;
+let trimInRange = null; // { start, end } 0-based indices
 
 window.viewSession = async function(sessionId) {
     const details = await ipcRenderer.invoke('session-get-details', sessionId);
@@ -496,6 +503,10 @@ window.viewSession = async function(sessionId) {
         showToast('No frame data available for this session', 'warning');
         return;
     }
+
+    currentViewerSessionId = sessionId;
+    trimInRange = null;
+    updateTrimUI();
 
     viewerTitle.textContent = `Scrubbing Session - ${sessionId.replace('session_', '').replace(/_/g, ' ')}`;
     currentViewerFrames = details.frames.map(f => ({
@@ -590,7 +601,75 @@ function closeViewerModal() {
     viewerVideo.src = '';
     viewerFrameImage.src = '';
     viewerModal.classList.remove('active');
+    trimInRange = null;
+    currentViewerSessionId = null;
 }
+
+// --- Trim / Split ---
+function updateTrimUI() {
+    if (trimInRange && trimInRange.start !== null && trimInRange.end !== null) {
+        const count = trimInRange.end - trimInRange.start + 1;
+        viewerRangeLabel.textContent = `In: ${trimInRange.start + 1} → Out: ${trimInRange.end + 1} (${count} frames)`;
+        btnTrim.disabled = false;
+    } else {
+        viewerRangeLabel.textContent = 'No range set';
+        btnTrim.disabled = true;
+    }
+}
+
+btnSetIn.addEventListener('click', () => {
+    if (currentViewerFrames.length === 0) return;
+    const idx = parseInt(viewerScrubSlider.value);
+    trimInRange = trimInRange || {};
+    trimInRange.start = idx;
+    // If end is before start, move end too
+    if (trimInRange.end !== null && trimInRange.end < idx) trimInRange.end = idx;
+    updateTrimUI();
+});
+
+btnSetOut.addEventListener('click', () => {
+    if (currentViewerFrames.length === 0) return;
+    const idx = parseInt(viewerScrubSlider.value);
+    trimInRange = trimInRange || {};
+    trimInRange.end = idx;
+    // If start is after end, move start too
+    if (trimInRange.start !== null && trimInRange.start > idx) trimInRange.start = idx;
+    updateTrimUI();
+});
+
+btnTrim.addEventListener('click', async () => {
+    if (!trimInRange || !currentViewerSessionId) return;
+    const count = trimInRange.end - trimInRange.start + 1;
+    if (!confirm(`Keep frames ${trimInRange.start + 1}–${trimInRange.end + 1} (${count} of ${currentViewerFrames.length}) and delete the rest?`)) return;
+
+    const result = await ipcRenderer.invoke('session-trim', currentViewerSessionId, trimInRange.start, trimInRange.end);
+    if (result.success) {
+        showToast(`Trimmed to ${result.frameCount} frames. Timelapse cleared — re-render to update.`, 'success');
+        closeViewerModal();
+        loadSessions();
+    } else {
+        showToast(`Trim failed: ${result.error}`, 'error');
+    }
+});
+
+btnSplit.addEventListener('click', async () => {
+    if (!currentViewerSessionId || currentViewerFrames.length < 2) return;
+    const idx = parseInt(viewerScrubSlider.value);
+    if (idx <= 0 || idx >= currentViewerFrames.length - 1) {
+        showToast('Move the scrubber to a middle frame to split.', 'warning');
+        return;
+    }
+    if (!confirm(`Split session at frame ${idx + 1}? Frames 1–${idx + 1} stay, ${idx + 2}–${currentViewerFrames.length} become a new session.`)) return;
+
+    const result = await ipcRenderer.invoke('session-split', currentViewerSessionId, idx);
+    if (result.success) {
+        showToast(`Split! Original: ${result.originalFrames} frames, New: ${result.splitFrames} frames.`, 'success');
+        closeViewerModal();
+        loadSessions();
+    } else {
+        showToast(`Split failed: ${result.error}`, 'error');
+    }
+});
 
 btnCloseViewer.addEventListener('click', closeViewerModal);
 viewerModal.addEventListener('click', (e) => {
